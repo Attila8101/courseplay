@@ -184,8 +184,8 @@ function FillableFieldworkAIDriver:areFillLevelsOk(fillLevelInfo,isWaitingForRef
 		totalFillLevel = totalFillLevel + info.fillLevel
 	end
 	-- special handling for extra frontTanks as they seems to change their fillType random
-	-- if we have either liquidFertilizer or herbicide just continue until both are empty
-	if not allOk and not hasSeeds and(liquidFertilizerFillLevel > 0 or herbicideFillLevel > 0 )then 
+	-- if we don't have a seeds and either liquidFertilizer or herbicide just continue until both are empty
+	if not allOk and not fillLevelInfo[FillType.SEEDS] and(liquidFertilizerFillLevel > 0 or herbicideFillLevel > 0) then 
 		self:debugSparse('we probably have an empty front Tank')
 		allOk = true
 	end
