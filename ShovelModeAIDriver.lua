@@ -43,23 +43,23 @@ NOTE: although lx and lz are passed in as parameters, they are never used.
 TODO: 
 	-fix the inheritance of ShovelModeAIDriver 
 	-maybe create a FrontLoaderAIDriver
-	-and the create seprate BunkerSiloShovelModeAIDriver and a new TriggerShovelAIDriver
+	-and then create a seprate BunkerSiloShovelModeAIDriver and a new TriggerShovelAIDriver
 	-move every overwritten/depended function of LevelCompactAIDriver to either
 	the BunkerSiloManager or maybe a BunkerSiloManagerUtil class
 	
 overwrittenFunctions: 
-	LevelCompactAIDriver.getBestTargetFillUnitFillUp(targetSilo,bestTarget)
-	LevelCompactAIDriver.isAtEnd()
-	LevelCompactAIDriver.debugRouting()
-	LevelCompactAIDriver.drawMap()
-	LevelCompactAIDriver.isNearEnd()
-	LevelCompactAIDriver.updateTarget()
-	LevelCompactAIDriver.getWorkWidth()
+------	LevelCompactAIDriver.getBestTargetFillUnitFillUp(targetSilo,bestTarget)
+------	LevelCompactAIDriver.isAtEnd()
+------	LevelCompactAIDriver.debugRouting()
+------	LevelCompactAIDriver.drawMap()
+------	LevelCompactAIDriver.isNearEnd()
+------	LevelCompactAIDriver.updateTarget()
+------	LevelCompactAIDriver.getWorkWidth()
 ]]--
 
----@class ShovelModeAIDriver : LevelCompactAIDriver
+---@class ShovelModeAIDriver : AIDriver
 
-ShovelModeAIDriver = CpObject(LevelCompactAIDriver)
+ShovelModeAIDriver = CpObject(AIDriver)
 
 ShovelModeAIDriver.myStates = {
 	STATE_CHECKSILO ={},
@@ -184,10 +184,10 @@ function ShovelModeAIDriver:drive(dt)
 		if self:setShovelToPositionFinshed(2,dt) then
 			--initialize first target point
 			if self.targetSilo == nil then
-				self.targetSilo = courseplay:getMode9TargetBunkerSilo(self.vehicle)
+				self.targetSilo = BunkerSiloManagerUtil.getTargetBunkerSilo(self.vehicle,nil,true)
 			end
 			if self.bestTarget == nil or self.vehicle.cp.BunkerSiloMap == nil then
-				self.bestTarget, self.firstLine = self:getBestTargetFillUnitFillUp(self.targetSilo,self.bestTarget)
+				self.vehicle.cp.BunkerSiloMap,self.bestTarget, self.firstLine = self:getBestTargetFillUnitFillUp(self.vehicle,self.targetSilo,self.bestTarget,self:getWorkWidth())
 			end
 		end
 		self:drawMap()
@@ -624,3 +624,37 @@ end
 function ShovelModeAIDriver:getWorkWidth()
 	return self.vehicle.cp.workWidth
 end
+
+function ShovelModeAIDriver:driveInDirection(dt,lx,lz,fwd,speed,allowedToDrive)
+	AIVehicleUtil.driveInDirection(self.vehicle, dt, self.vehicle.cp.steeringAngle, 1, 0.5, 10, allowedToDrive, fwd, lx, lz, speed, 1)
+end
+
+function ShovelModeAIDriver:isAtEnd()
+	return g_bunkerSiloManager:isAtEnd(self.shovel,self.vehicle.cp.BunkerSiloMap,self.bestTarget)
+end
+
+function ShovelModeAIDriver:getBestTargetFillUnitFillUp(vehicle,Silo,actualTarget,workWidth)
+	return g_bunkerSiloManager:getBestTargetFillUnitFillUp(vehicle,Silo,actualTarget,workWidth)
+end
+
+function ShovelModeAIDriver:isNearEnd()
+	return g_bunkerSiloManager:isNearEnd(self.vehicle.cp.BunkerSiloMap,self.bestTarget)
+end
+
+function ShovelModeAIDriver:updateTarget()
+	return g_bunkerSiloManager:updateTarget(self.shovel,self.vehicle.cp.BunkerSiloMap,self.bestTarget)
+end
+
+function ShovelModeAIDriver:debugRouting()
+	if self:isDebugActive() then
+		BunkerSiloManagerUtil.debugRouting(self.vehicle,self.vehicle.cp.BunkerSiloMap,self.targetSilo,self.bestTarget,self.tempTarget)
+	end
+end
+
+function ShovelModeAIDriver:drawMap()
+	if self:isDebugActive() then
+		BunkerSiloManagerUtil.drawMap(self.vehicle.cp.BunkerSiloMap,self.targetSilo)
+	end
+end
+
+
