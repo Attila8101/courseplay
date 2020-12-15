@@ -1413,7 +1413,7 @@ end
 
 function AIDriver:setOffsetInBGASilo()
 	if self.BunkerSiloMap == nil then
-		self.BunkerSilo = g_bunkerSiloManager:getTargetBunkerSiloByPointOnCourse(self.course,self.ppc:getCurrentWaypointIx()+3)
+		self.BunkerSilo = BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(self.course,self.ppc:getCurrentWaypointIx()+3)
 		if self.BunkerSilo ~= nil then
 			self.BunkerSiloMap = g_bunkerSiloManager:createBunkerSiloMap(self.vehicle, self.BunkerSilo,3)
 		end

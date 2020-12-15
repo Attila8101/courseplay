@@ -41,20 +41,8 @@ NOTE: although lx and lz are passed in as parameters, they are never used.
 
 --[[
 TODO: 
-	-fix the inheritance of ShovelModeAIDriver 
 	-maybe create a FrontLoaderAIDriver
 	-and then create a seprate BunkerSiloShovelModeAIDriver and a new TriggerShovelAIDriver
-	-move every overwritten/depended function of LevelCompactAIDriver to either
-	the BunkerSiloManager or maybe a BunkerSiloManagerUtil class
-	
-overwrittenFunctions: 
-------	LevelCompactAIDriver.getBestTargetFillUnitFillUp(targetSilo,bestTarget)
-------	LevelCompactAIDriver.isAtEnd()
-------	LevelCompactAIDriver.debugRouting()
-------	LevelCompactAIDriver.drawMap()
-------	LevelCompactAIDriver.isNearEnd()
-------	LevelCompactAIDriver.updateTarget()
-------	LevelCompactAIDriver.getWorkWidth()
 ]]--
 
 ---@class ShovelModeAIDriver : AIDriver

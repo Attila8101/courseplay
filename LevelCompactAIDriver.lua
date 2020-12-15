@@ -387,7 +387,7 @@ function LevelCompactAIDriver:getHasMovedToFrontLine(dt)
 end
 
 function LevelCompactAIDriver:isNearEnd()
-	return self.bestTarget.line >= #self.vehicle.cp.BunkerSiloMap-1
+	return g_bunkerSiloManager:isNearEnd(self.vehicle.cp.BunkerSiloMap,self.bestTarget)
 end
 
 
@@ -457,32 +457,11 @@ function LevelCompactAIDriver:hasShieldEmpty()
 end
 
 function LevelCompactAIDriver:updateTarget()
-	local targetUnit = self.vehicle.cp.BunkerSiloMap[self.bestTarget.line][self.bestTarget.column]
-	local cx ,cz = targetUnit.cx, targetUnit.cz
-	local cy = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, cx, 1, cz);
-	local x,y,z = getWorldTranslation(self.vehicle.cp.workTools[1].rootNode)
-	local distance2Target =  courseplay:distance(x,z, cx, cz) --distance from shovel to target
-	if distance2Target < 1 then
-		self.bestTarget.line = math.min(self.bestTarget.line + 1, #self.vehicle.cp.BunkerSiloMap)
-	end		
+	return g_bunkerSiloManager:updateTarget(self.vehicle.cp.workTools[1],self.vehicle.cp.BunkerSiloMap,self.bestTarget)
 end
 
 function LevelCompactAIDriver:isAtEnd()
-	if not self.vehicle.cp.BunkerSiloMap or not bestTarget then 
-		return
-	end
-	
-	local targetUnit = self.vehicle.cp.BunkerSiloMap[self.bestTarget.line][self.bestTarget.column]
-	local cx ,cz = targetUnit.cx, targetUnit.cz
-	local cy = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, cx, 1, cz);
-	local x,y,z = getWorldTranslation(self.vehicle.cp.workTools[1].rootNode)
-	local distance2Target =  courseplay:distance(x,z, cx, cz) --distance from shovel to target
-	if distance2Target < 1 then
-		if self.bestTarget.line == #self.vehicle.cp.BunkerSiloMap then
-			self:debug("dropout atEnd")
-			return true
-		end
-	end
+	return g_bunkerSiloManager:isAtEnd(self.vehicle.cp.workTools[1],self.vehicle.cp.BunkerSiloMap,self.bestTarget)
 end
 
 function LevelCompactAIDriver:deleteBestTarget()
@@ -560,7 +539,7 @@ end
 
 function LevelCompactAIDriver:checkSilo()
 	if self.targetSilo == nil then
-		self.targetSilo = courseplay:getMode9TargetBunkerSilo(self.vehicle,1)
+		self.targetSilo = BunkerSiloManagerUtil.getTargetBunkerSilo(self.vehicle,1)
 	end
 	if not self.targetSilo then
 		courseplay:setInfoText(self.vehicle, courseplay:loc('COURSEPLAY_MODE10_NOSILO'));
@@ -714,52 +693,9 @@ function LevelCompactAIDriver:printMap()
 end
 
 function LevelCompactAIDriver:getBestTargetFillUnitFillUp(Silo,actualTarget)
-	--print(string.format("courseplay:getActualTarget(vehicle) called by %s",tostring(courseplay.utils:getFnCallPath(3))))
-	local vehicle = self.vehicle
-	local firstLine = 0
-	vehicle.cp.BunkerSiloMap = g_bunkerSiloManager:createBunkerSiloMap(vehicle, Silo, self:getWorkWidth())
-	if vehicle.cp.BunkerSiloMap ~= nil then
-		local stopSearching = false
-		local mostFillLevelAtLine = 0
-		local mostFillLevelIndex = 2
-		local fillingTarget = {}
-
-		-- find column with most fillLevel and figure out whether it is empty
-		for lineIndex, line in pairs(vehicle.cp.BunkerSiloMap) do
-			if stopSearching then
-				break
-			end
-			mostFillLevelAtLine = 0
-			for column, fillUnit in pairs(line) do
-				if 	mostFillLevelAtLine < fillUnit.fillLevel then
-					mostFillLevelAtLine = fillUnit.fillLevel
-					mostFillLevelIndex = column
-				end
-				if column == #line and mostFillLevelAtLine > 0 then
-					fillingTarget = {
-										line = lineIndex;
-										column = mostFillLevelIndex;
-										empty = false;
-												}
-					stopSearching = true
-					break
-				end
-			end
-		end
-		if mostFillLevelAtLine == 0 then
-			fillingTarget = {
-										line = 1;
-										column = 1;
-										empty = true;
-												}
-		end
-		
-		actualTarget = fillingTarget
-		firstLine = actualTarget.line
-	end
-	
-	return actualTarget, firstLine
+	return g_bunkerSiloManager:getBestTargetFillUnitFillUp(self.vehicle,Silo,actualTarget,self:getWorkWidth())
 end
+
 -- TODO: create a BunkerSiloMap class ...
 -- Find the first row in the map where this column is not empty
 function LevelCompactAIDriver:findFirstNonEmptyRow(map, column)
@@ -821,68 +757,14 @@ function LevelCompactAIDriver:getColumnsTargetHeight(newColumn)
 end
 
 function LevelCompactAIDriver:debugRouting()
-	if courseplay.debugChannels[10] and self.vehicle.cp.BunkerSiloMap ~= nil and self.bestTarget ~= nil then
-
-		local fillUnit = self.vehicle.cp.BunkerSiloMap[self.bestTarget.line][self.bestTarget.column]
-		--print(string.format("fillUnit %s; self.cp.actualTarget.line %s; self.cp.actualTarget.column %s",tostring(fillUnit),tostring(self.cp.actualTarget.line),tostring(self.cp.actualTarget.column)))
-		local sx,sz = fillUnit.sx,fillUnit.sz
-		local wx,wz = fillUnit.wx,fillUnit.wz
-		local bx,bz = fillUnit.bx,fillUnit.bz
-		local hx,hz = fillUnit.hx +(fillUnit.wx-fillUnit.sx) ,fillUnit.hz +(fillUnit.wz-fillUnit.sz)
-		local _,tractorHeight,_ = getWorldTranslation(self.vehicle.cp.directionNode)
-		local y = tractorHeight + 1.5;
-
-		cpDebug:drawLine(sx, y, sz, 1, 0, 0, wx, y, wz);
-		cpDebug:drawLine(wx, y, wz, 1, 0, 0, hx, y, hz);
-		cpDebug:drawLine(fillUnit.hx, y, fillUnit.hz, 1, 0, 0, sx, y, sz);
-		cpDebug:drawLine(fillUnit.cx, y, fillUnit.cz, 1, 0, 1, bx, y, bz);
-		cpDebug:drawPoint(fillUnit.cx, y, fillUnit.cz, 1, 1 , 1);
-
-		local bunker = self.targetSilo
-		if bunker ~= nil then
-			local sx,sz = bunker.bunkerSiloArea.sx,bunker.bunkerSiloArea.sz
-			local wx,wz = bunker.bunkerSiloArea.wx,bunker.bunkerSiloArea.wz
-			local hx,hz = bunker.bunkerSiloArea.hx,bunker.bunkerSiloArea.hz
-			cpDebug:drawLine(sx,y+2,sz, 0, 0, 1, wx,y+2,wz);
-			--drawDebugLine(sx,y+2,sz, 0, 0, 1, hx,y+2,hz, 0, 1, 0);
-			--drawDebugLine(wx,y+2,wz, 0, 0, 1, hx,y+2,hz, 0, 1, 0);
-			cpDebug:drawLine(sx,y+2,sz, 0, 0, 1, hx,y+2,hz);
-			cpDebug:drawLine(wx,y+2,wz, 0, 0, 1, hx,y+2,hz);
-		end
-		if self.tempTarget ~= nil then
-			local tx,tz = self.tempTarget.cx,self.tempTarget.cz
-			local fillUnit = self.vehicle.cp.BunkerSiloMap[self.bestTarget.line][self.bestTarget.column]
-			local sx,sz = fillUnit.sx,fillUnit.sz
-			cpDebug:drawLine(tx, y, tz, 1, 0, 1, sx, y, sz);
-			cpDebug:drawPoint(tx, y, tz, 1, 1 , 1);
-		end
+	if self:isDebugActive() then
+		BunkerSiloManagerUtil.debugRouting(self.vehicle,self.vehicle.cp.BunkerSiloMap,self.targetSilo,self.bestTarget,self.tempTarget)
 	end
-
 end
 
 function LevelCompactAIDriver:drawMap()
-	function drawTile(f, r, g, b)
-		cpDebug:drawLine(f.sx, f.y + 1, f.sz, r, g, b, f.wx, f.y + 1, f.wz)
-		cpDebug:drawLine(f.wx, f.y + 1, f.wz, r, g, b, f.hx, f.y + 1, f.hz)
-		cpDebug:drawLine(f.hx, f.y + 1, f.hz, r, g, b, f.sx, f.y + 1, f.sz);
-		cpDebug:drawLine(f.cx, f.y + 1, f.cz, 1, 1, 1, f.bx, f.y + 1, f.bz);
-	end
-
-	if not self.vehicle.cp.BunkerSiloMap or not courseplay.debugChannels[self.debugChannel] then return end
-	for _, line in pairs(self.vehicle.cp.BunkerSiloMap) do
-		for _, fillUnit in pairs(line) do
-			drawTile(fillUnit, 1/1 - fillUnit.fillLevel, 1, 0)
-		end
-	end
-	if not self.targetSilo then return end
-	if self.targetSilo.bunkerSiloArea.start then 
-		DebugUtil.drawDebugNode(self.targetSilo.bunkerSiloArea.start, 'startBunkerNode')
-		DebugUtil.drawDebugNode(self.targetSilo.bunkerSiloArea.width, 'widthBunkerNode')
-		DebugUtil.drawDebugNode(self.targetSilo.bunkerSiloArea.height, 'heightBunkerNode')
-	else --for heaps where we have no bunker nodes (start/width/height)
-		cpDebug:drawPoint(self.targetSilo.bunkerSiloArea.sx, 1, self.targetSilo.bunkerSiloArea.sz, 1, 1, 1)
-		cpDebug:drawPoint(self.targetSilo.bunkerSiloArea.wx, 1, self.targetSilo.bunkerSiloArea.wz, 1, 1, 1)
-		cpDebug:drawPoint(self.targetSilo.bunkerSiloArea.hx, 1, self.targetSilo.bunkerSiloArea.hz, 1, 1, 1)
+	if self:isDebugActive() then
+		BunkerSiloManagerUtil.drawMap(self.vehicle.cp.BunkerSiloMap,self.targetSilo)
 	end
 end
 
@@ -913,4 +795,8 @@ end
 
 function LevelCompactAIDriver:getWorkWidth()
 	return math.max(self.workWidth,self.vehicle.cp.workWidth)
+end
+
+function LevelCompactAIDriver:isDebugActive()
+	return courseplay.debugChannels[10]
 end

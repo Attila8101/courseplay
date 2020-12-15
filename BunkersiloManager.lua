@@ -27,6 +27,8 @@ widthNode -->	|				|	<-- startNode (sx,_,sz)
 
 ]]--
 
+--BunkerSiloManager should be a class of a bunkerSiloMap and not a global container for functions
+
 -- Constructor
 function BunkerSiloManager:init()
 	print("BunkerSiloManager: init()")
@@ -182,24 +184,9 @@ function BunkerSiloManager:createBunkerSiloMap(vehicle, Silo, width, height)
 	return map
 end
 
-function BunkerSiloManager:getTargetBunkerSiloByPointOnCourse(course,forcedPoint)
-	local pointIndex = forcedPoint or 1 ;
-	local x,_,z =  course:getWaypointPosition(pointIndex)
-	local tx,tz = x,z + 0.50
-	local p1x,p1z,p2x,p2z,p1y,p2y = 0,0,0,0,0,0
-	if g_currentMission.bunkerSilos ~= nil then
-		for _, bunker in pairs(g_currentMission.bunkerSilos) do
-			local x1,z1 = bunker.bunkerSiloArea.sx,bunker.bunkerSiloArea.sz
-			local x2,z2 = bunker.bunkerSiloArea.wx,bunker.bunkerSiloArea.wz
-			local x3,z3 = bunker.bunkerSiloArea.hx,bunker.bunkerSiloArea.hz
-			bunker.type = "silo"
-			if MathUtil.hasRectangleLineIntersection2D(x1,z1,x2-x1,z2-z1,x3-x1,z3-z1,x,z,tx-x,tz-z) then
-				return bunker
-			end
-		end
-	end
-end
-
+---get the best colum to fill
+---@param siloMap BunkerSiloMap
+---@return leastColumnIndex best column to fill
 function BunkerSiloManager:getBestColumnToFill(siloMap)
 	local leastFillLevel = math.huge
 	local leastColumnIndex = 0
@@ -220,11 +207,17 @@ function BunkerSiloManager:getBestColumnToFill(siloMap)
 	return leastColumnIndex
 end
 
+---set the waypoint cordinates for the correct colum of the bunkerSiloMap
+---@param course course of the driver
+---@param siloMap BunkerSiloMap
+---@param bestColumn target colum of the BunkerSiloMap
+---@param ix currentWaypointIx of the driver
+---@return foundFirst return first waypointIndex to start offset course from
 function BunkerSiloManager:setOffsetsPerWayPoint(course,siloMap,bestColumn,ix)
 	local points =	{}
 	local foundFirst = 0
 	for index=ix,course:getNumberOfWaypoints() do
-		if self:getTargetBunkerSiloByPointOnCourse(course,index)~= nil then
+		if BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(course,index)~= nil then
 			local closest,cx,cz = 0,0,0
 			local leastDistance = math.huge
 			for lineIndex=1,#siloMap do
@@ -271,7 +264,6 @@ function BunkerSiloManager:isAtEnd(object,bunkerSiloMap,bestTarget)
 	local distance2Target =  courseplay:distance(x,z, cx, cz) --distance from shovel to target
 	if distance2Target < 1 then
 		if bestTarget.line == #bunkerSiloMap then
-			self:debug("dropout atEnd")
 			return true
 		end
 	end
@@ -572,5 +564,25 @@ function BunkerSiloManagerUtil.getHeapCoords(vehicle)
 	return bunker
 end
 
-
+---get the best colum to fill
+---@param course course of the driver
+---@param forcedPoint forcedPoint or 1 to find the next closest bunkersilo
+---@return leastColumnIndex best column to fill
+function BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(course,forcedPoint)
+	local pointIndex = forcedPoint or 1 ;
+	local x,_,z =  course:getWaypointPosition(pointIndex)
+	local tx,tz = x,z + 0.50
+	local p1x,p1z,p2x,p2z,p1y,p2y = 0,0,0,0,0,0
+	if g_currentMission.bunkerSilos ~= nil then
+		for _, bunker in pairs(g_currentMission.bunkerSilos) do
+			local x1,z1 = bunker.bunkerSiloArea.sx,bunker.bunkerSiloArea.sz
+			local x2,z2 = bunker.bunkerSiloArea.wx,bunker.bunkerSiloArea.wz
+			local x3,z3 = bunker.bunkerSiloArea.hx,bunker.bunkerSiloArea.hz
+			bunker.type = "silo"
+			if MathUtil.hasRectangleLineIntersection2D(x1,z1,x2-x1,z2-z1,x3-x1,z3-z1,x,z,tx-x,tz-z) then
+				return bunker
+			end
+		end
+	end
+end
 
