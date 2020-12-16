@@ -1503,11 +1503,11 @@ function courseplay.processSowingMachineArea(tool,originalFunction, superFunc, w
 end
 FertilizingSowingMachine.processSowingMachineArea = Utils.overwrittenFunction(FertilizingSowingMachine.processSowingMachineArea, courseplay.processSowingMachineArea)
 
-function courseplay.processSprayerArea(tool,originalFunction, superFunc, workArea, dt)
+function courseplay.processSprayerArea(tool,originalFunction, workArea, dt)
 	if tool.fertilizerEnabled ~= nil and tool.spec_sowingMachine then
 		tool.spec_sprayer.workAreaParameters.sprayFillLevel = tool.fertilizerEnabled and tool.spec_sprayer.workAreaParameters.sprayFillLevel or 0
 	end
-	return originalFunction(tool, superFunc, workArea, dt)
+	return originalFunction(tool, workArea, dt)
 end
 Sprayer.processSprayerArea = Utils.overwrittenFunction(Sprayer.processSprayerArea, courseplay.processSprayerArea)
 
