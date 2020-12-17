@@ -57,6 +57,7 @@ function LevelCompactAIDriver:init(vehicle)
 	self.fillUpState = self.states.PUSH
 	self.stoppedCourseplayers = {}
 	self:setLevelerWorkWidth()
+--	self.unloaderAIDrivers = nil
 end
 
 function LevelCompactAIDriver:setHudContent()
@@ -78,8 +79,10 @@ function LevelCompactAIDriver:drive(dt)
 	-- update current waypoint/goal point
 	self:drawMap()
 	self.allowedToDrive = true
-	self:lookOutForCourseplayers()
-	self:manageCourseplayersStopping()
+	if self:foundUnloaderInRadius(self.vehicle.cp.mode10.searchRadius,not self:isWaitingForUnloaders()) then 
+		self.hasFoundUnloaders = true
+	end	
+	
 	if self.levelState == self.states.DRIVE_TO_PARKING then
 		self:moveShield('up',dt)
 		self.ppc:update()
@@ -87,7 +90,7 @@ function LevelCompactAIDriver:drive(dt)
 	elseif self.levelState == self.states.WAITING_FOR_FREE_WAY then
 		self:stopAndWait(dt)
 
-		if not self:shouldGoToSavePosition() then
+		if not self.hasFoundUnloaders then
 			self:changeLevelState(self.states.DRIVE_TO_PARKING)
 		end
 
@@ -109,6 +112,31 @@ function LevelCompactAIDriver:drive(dt)
 		self:driveSiloCompact(dt)
 	end
 end
+
+function LevelCompactAIDriver:foundUnloaderInRadius(r,setWaiting)
+	if g_currentMission then
+		for _, vehicle in pairs(g_currentMission.vehicles) do
+			local d = calcDistanceFrom(self.vehicle.rootNode, vehicle.rootNode)
+			if d < r then
+				if courseplay:isAIDriverActive(vehicle) and vehicle.cp.driver.triggerHandler:isNearBunkerSilo() then --CombineUnloadAIDriver,GrainTransportAIDriver,UnloadableFieldworkAIDriver
+					if setWaiting then 
+						vehicle.cp.driver.triggerHandler:setWaitingForUnloadReady()
+					else 
+						vehicle.cp.driver.triggerHandler:resetWaitingForUnloadReady()
+					end
+			--		self.unloaderAIDrivers[#self.unloaderAIDrivers+1] = vehicle
+				elseif vehicle:getIsEntered() and AIDriverUtil.getImplementWithSpecialization(vehicle, Trailer) ~= nil then --player ??
+				
+				end
+				return true
+			end
+		end
+	end
+end
+
+function LevelCompactAIDriver:isWaitingForUnloaders()
+	return self.levelState == self.states.WAITING_FOR_FREE_WAY
+end 
 
 function LevelCompactAIDriver:isTrafficConflictDetectionEnabled()
 	return self.trafficConflictDetectionEnabled and self.levelState and self.levelState.properties.checkForTrafficConflict
@@ -242,7 +270,7 @@ function LevelCompactAIDriver:driveSiloCompact(dt)
 		self:drivePush(dt)
 		self:lowerImplements()
 		if self:isAtEnd() then
-			if self:shouldGoToSavePosition() then
+			if self.hasFoundUnloaders then
 				self:changeLevelState(self.states.DRIVE_TO_PARKING)
 				self:deleteBestTarget()
 				self:raiseImplements()
@@ -276,7 +304,7 @@ function LevelCompactAIDriver:driveSiloLevel(dt)
 		or self:hasShieldEmpty()
 		or self:isStuck()
 		then
-			if self:shouldGoToSavePosition() then
+			if self.hasFoundUnloaders then
 				self:changeLevelState(self.states.DRIVE_TO_PARKING)
 				self:deleteBestTarget()
 				return
@@ -314,7 +342,7 @@ function LevelCompactAIDriver:driveSiloFillUp(dt)
 		or self:isStuck()
 		or self:hasShieldEmpty()
 		then
-			if self:shouldGoToSavePosition() then
+			if self.hasFoundUnloaders then
 				self:changeLevelState(self.states.DRIVE_TO_PARKING)
 				self:deleteBestTarget()
 				return

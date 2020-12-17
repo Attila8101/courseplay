@@ -53,7 +53,6 @@ local function initialize()
 		'CpManager',
 		'base',
 		'button',
-		'bunkersilo_management',
 		'BunkersiloManager',
 		'courseplay_event',
 		'course_management',

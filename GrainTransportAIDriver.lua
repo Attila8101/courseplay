@@ -101,6 +101,7 @@ function GrainTransportAIDriver:drive(dt)
 		self.triggerHandler:disableFillTypeUnloading()
 	else 
 		self.triggerHandler:enableFillTypeUnloading()
+		self.triggerHandler:enableFillTypeUnloadingBunkerSilo()
 		self.triggerHandler:disableFillTypeLoading()
 	end
 		-- TODO: are these checks really necessary?
