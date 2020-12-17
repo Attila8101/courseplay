@@ -79,6 +79,12 @@ function TriggerHandler:onUpdate(dt)
 			self:changeLoadingState("NOTHING")
 		end
 	end
+	if self.validFillTypeUnloadingBunkerSilo then 
+		self:updateUnloadingBunkerSilo()
+	end
+	if self:isWaitingForUnloadReady() then 
+		self.driver:setSpeed(0)
+	end
 end 
 
 --debug info
@@ -158,14 +164,7 @@ function TriggerHandler:renderText(y,text,xOffset)
 end
 
 function TriggerHandler:onUpdateTick(dt)
-	if self.validFillTypeUnloadingBunkerSilo then 
-		local vehicleNode = self.vehicle.rootNode
-		if self.bunkerSilo ~= nil then
-			self.bunkerSilo = BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(self.driver.course,self.driver.ppc:getCurrentWaypointIx()+3)
-		else 
-			self.bunkerSilo = BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(self.driver.course,self.driver.ppc:getCurrentWaypointIx()-3)
-		end
-	end
+
 end
 
 function TriggerHandler:onContinue()
@@ -215,6 +214,14 @@ function TriggerHandler:updateUnloadingTriggers()
 		self:disableUnloadingIfEmpty()
 	end
 end 
+
+function TriggerHandler:updateUnloadingBunkerSilo()
+	if self.bunkerSilo ~= nil then
+		self.bunkerSilo = BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(self.driver.course,self.driver.ppc:getCurrentWaypointIx()+3)
+	else 
+		self.bunkerSilo = BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(self.driver.course,self.driver.ppc:getCurrentWaypointIx()-3)
+	end
+end
 
 function TriggerHandler:disableFillingIfFull()
 	if self:isFilledUntilPercantageX() then 
