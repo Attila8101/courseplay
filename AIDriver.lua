@@ -1412,23 +1412,22 @@ function AIDriver:getHasAllTippersClosed()
 end
 
 function AIDriver:setOffsetInBGASilo()
-	if self.BunkerSiloMap == nil then
-		self.BunkerSilo = BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(self.course,self.ppc:getCurrentWaypointIx()+3)
-		if self.BunkerSilo ~= nil then
-			self.BunkerSiloMap = g_bunkerSiloManager:createBunkerSiloMap(self.vehicle, self.BunkerSilo,3)
+	if self.bunkerSiloManager == nil then
+		local silo = BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(self.course,self.ppc:getCurrentWaypointIx()+3)
+		if silo then
+			self.bunkerSiloManager = BunkerSiloManager(self.vehicle, silo,3)
 		end
 	end
-	if self.BunkerSiloMap ~= nil then
+	if self.bunkerSiloManager ~= nil then
 		if self.bestColumnToFill == nil then
-			self.bestColumnToFill = g_bunkerSiloManager:getBestColumnToFill(self.BunkerSiloMap)
-			self.ppc:initialize(g_bunkerSiloManager:setOffsetsPerWayPoint(self.course,self.BunkerSiloMap,self.bestColumnToFill,self.ppc:getCurrentWaypointIx()))
+			self.bestColumnToFill = self.bunkerSiloManager:getBestColumnToFill()
+			self.ppc:initialize(self.bunkerSiloManager:setOffsetsPerWayPoint(self.course,self.bestColumnToFill,self.ppc:getCurrentWaypointIx()))
 		end
 	end
 end
 
 function AIDriver:resetBGASiloTables()
-	self.BunkerSilo = nil
-	self.BunkerSiloMap = nil
+	self.bunkerSiloManager = nil
 	self.offsetsPerWayPoint = nil
 	self.bestColumnToFill = nil
 end

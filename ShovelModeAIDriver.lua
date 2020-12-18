@@ -144,8 +144,7 @@ function ShovelModeAIDriver:onDraw()
 	if self:isDebugActive() then 
 		local y = 0.5
 		y = self:renderText(y,"state: "..tostring(self.shovelState.name))
-		y = self:renderText(y,"hasBunkerSiloMap: "..tostring(self.self.bunkerSiloManager.siloMap ~= nil))
-		y = self:renderText(y,"hasTargetSilo: "..tostring(self.targetSilo ~= nil))
+		y = self:renderText(y,"hasbunkerSiloManager: "..tostring(self.bunkerSiloManager ~= nil))
 		y = self:renderText(y,"hasBestTarget: "..tostring(self.bestTarget ~= nil))
 		y = self:renderText(y,"isShovelFull: "..tostring(self:getIsShovelFull() == true))
 		y = self:renderText(y,"isShovelEmpty: "..tostring(self:getIsShovelEmpty() == true))
@@ -519,7 +518,7 @@ end
 function ShovelModeAIDriver:checkLastWaypoint()
 	if self.ppc:reachedLastWaypoint() then
 		self.ppc:initialize(1)
-		self.self.bunkerSiloManager = nil
+		self.bunkerSiloManager = nil
 	end
 end
 
@@ -593,7 +592,7 @@ function ShovelModeAIDriver:getTargetToStraightOut()
 end
 
 function ShovelModeAIDriver:getIsReversedOutOfSilo()
-	local x,z = self.self.bunkerSiloManager.siloMap[1][self.bestTarget.column].cx,self.self.bunkerSiloManager.siloMap[1][self.bestTarget.column].cz
+	local x,z = self.bunkerSiloManager.siloMap[1][self.bestTarget.column].cx,self.bunkerSiloManager.siloMap[1][self.bestTarget.column].cz
 	local px,py,pz = worldToLocal(self.vehicle.cp.directionNode,x,0,z)
 	return pz > 4
 end
