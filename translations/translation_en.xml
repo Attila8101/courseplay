@@ -492,6 +492,10 @@
 		<text name="COURSEPLAY_LOADING_SEPERATE_FILLTYPES"				    text="Loading seperate FillTypes" />
 		<text name="COURSEPLAY_LOADING_SEPERATE_FILLTYPES_TRAILERS"			text="Seperate Trailers:" />
 		<text name="COURSEPLAY_MANUAL_LOADING"								text="manual Loading" />
+		
+		<text name="COURSEPLAY_WAITING_FOR_UNLOADERS"						text="waiting for unloaders" />
+		<text name="COURSEPLAY_WAITING_FOR_LEVELCOMPACTAIDRIVER"			text="waiting for levelCompactAIDriver" />
+		
 		<!-- Replace marker, do not remove! -->
 </texts>
 </l10n>

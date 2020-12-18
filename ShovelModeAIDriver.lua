@@ -620,18 +620,6 @@ function ShovelModeAIDriver:driveInDirection(dt,lx,lz,fwd,speed,allowedToDrive)
 	AIVehicleUtil.driveInDirection(self.vehicle, dt, self.vehicle.cp.steeringAngle, 1, 0.5, 10, allowedToDrive, fwd, lx, lz, speed, 1)
 end
 
---function ShovelModeAIDriver:isAtEnd()
---	return g_bunkerSiloManager:isAtEnd(self.shovel,self.self.bunkerSiloManager.siloMap,self.bestTarget)
---end
-
---function ShovelModeAIDriver:isNearEnd()
---	return g_bunkerSiloManager:isNearEnd(self.self.bunkerSiloManager.siloMap,self.bestTarget)
---end
-
---function ShovelModeAIDriver:updateTarget()
---	return g_bunkerSiloManager:updateTarget(self.shovel,self.self.bunkerSiloManager.siloMap,self.bestTarget)
---end
-
 function ShovelModeAIDriver:debugRouting()
 	if self:isDebugActive() and self.bunkerSiloManager then
 		self.bunkerSiloManager:debugRouting(self.bestTarget,self.tempTarget)

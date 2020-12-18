@@ -57,7 +57,6 @@ function LevelCompactAIDriver:init(vehicle)
 	self.fillUpState = self.states.PUSH
 	self.stoppedCourseplayers = {}
 	self:setLevelerWorkWidth()
---	self.unloaderAIDrivers = nil
 end
 
 function LevelCompactAIDriver:setHudContent()
@@ -94,7 +93,6 @@ function LevelCompactAIDriver:drive(dt)
 		AIDriver.driveCourse(self, dt)
 	elseif self.levelState == self.states.WAITING_FOR_FREE_WAY then
 		self:stopAndWait(dt)
-
 		if not self.hasFoundUnloaders then
 			self:changeLevelState(self.states.DRIVE_TO_PARKING)
 			self:clearInfoText('WAITING_FOR_UNLOADERS')
@@ -118,6 +116,7 @@ function LevelCompactAIDriver:drive(dt)
 	elseif self.levelState == self.states.DRIVE_SILOCOMPACT then
 		self:driveSiloCompact(dt)
 	end
+	self:updateInfoText()
 end
 
 function LevelCompactAIDriver:foundUnloaderInRadius(r,setWaiting)
@@ -480,6 +479,7 @@ function LevelCompactAIDriver:driveInDirection(dt,lx,lz,fwd,speed,allowedToDrive
 end
 
 function LevelCompactAIDriver:onEndCourse()
+	self.ppc:initialize(1)
 	self:changeLevelState(self.states.CHECK_SILO)
 end
 
