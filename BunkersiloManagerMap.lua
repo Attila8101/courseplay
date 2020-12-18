@@ -1,5 +1,6 @@
----@class FieldManager
-BunkerSiloManager = CpObject()
+
+---@class BunkerSiloMap
+BunkerSiloMapManager = CpObject()
 
 --for reference look up : "https://gdn.giants-software.com/documentation_scripting_fs19.php?version=script&category=26&class=244"
 --mostly : "BunkerSilo:load(id, xmlFile, key)"
@@ -26,32 +27,17 @@ widthNode -->	|				|	<-- startNode (sx,_,sz)
 
 
 ]]--
+--createBunkerSiloMap() is not only for bunkerSilo or it dosen't always has the correct bunker setup ..
 
---BunkerSiloManager should be a class of a bunkerSiloMap and not a global container for functions
-
----BunkerSiloManager class
----@param vehicle vehicle
----@param Silo BunkerSilo or simulated HeapSilo
----@param width workwidth
----@param object relevant workTool
----@param isHeap are we using a simulated Heap 
-function BunkerSiloManager:init(vehicle, Silo, width, object,isHeap)
-	print("BunkerSiloManager: init()")
-	self.siloMap = self:createBunkerSiloMap(vehicle, Silo, width,isHeap)
-	self.silo = Silo
-	self.vehicle = vehicle
-	self.object = object
-end
-
----creating the relevant siloMap
----@param vehicle vehicle
----@param Silo BunkerSilo or simulated HeapSilo
----@param width workwidth
----@param isHeap are we using a simulated Heap 
-function BunkerSiloManager:createBunkerSiloMap(vehicle, Silo, width,isHeap)
+--width is workWidth of the tool
+function BunkerSiloMapManager:init(vehicle, Silo, width)
 	-- the developer could have added comments explaining what sx/wx/hx is but chose not to do so
 	-- ignoring his fellow developers ...
-	
+	self.vehicle = vehicle
+	if Silo == nil then
+		Silo = BunkerSiloManagerUtil.getTargetBunkerSilo(self.vehicle,nil,true)
+	end	
+	self.silo = Silo
 	--only for Heaps as this createBunkerSiloMap() also applies to it ..
 	local sx,sz = Silo.bunkerSiloArea.sx,Silo.bunkerSiloArea.sz; --start BunkerNode
 	local wx,wz = Silo.bunkerSiloArea.wx,Silo.bunkerSiloArea.wz; --width BunkerNode "x cordinate"
@@ -96,7 +82,7 @@ function BunkerSiloManager:createBunkerSiloMap(vehicle, Silo, width,isHeap)
 	local heightLengthZ = (hz-sz)/heightCount
 	local widthLengthX = (wx-sx)/widthCount
 	local widthLengthZ = (wz-sz)/widthCount
-	local getOffTheWall = 1;
+	local getOffTheWall = 0.5;
 
 	local lastValidfillType = 0
 	local map = {}
@@ -123,7 +109,7 @@ function BunkerSiloManager:createBunkerSiloMap(vehicle, Silo, width,isHeap)
 			local bx = sx + (widthLengthX/2) + (heightLengthX/2)
 			local bz = sz + (widthLengthZ/2) + (heightLengthZ/2)
 			local offset = 0
-			if isHeap then
+			if vehicle.cp.mode9TargetSilo and vehicle.cp.mode9TargetSilo.type and vehicle.cp.mode9TargetSilo.type == "heap" then
 				--no idea ??
 				offset = unitWidth/2
 			else
@@ -189,18 +175,17 @@ function BunkerSiloManager:createBunkerSiloMap(vehicle, Silo, width,isHeap)
 		end
 		map = newMap
 	end
-	return map
+	self.bunkerMap = map
 end
 
----get the best colum to fill
----@return leastColumnIndex best column to fill
-function BunkerSiloManager:getBestColumnToFill()
+function BunkerSiloMapManager:getBestColumnToFill()
 	local leastFillLevel = math.huge
 	local leastColumnIndex = 0
-	for columnIndex=2,#self.siloMap[1]-1 do
+	local siloMap = self.bunkerMap
+	for columnIndex=2,#siloMap[1]-1 do
 		local currentFillLevel = 0
-		for lineIndex=1,#self.siloMap do
-			local fillUnit = self.siloMap[lineIndex][columnIndex]
+		for lineIndex=1,#siloMap do
+			local fillUnit = siloMap[lineIndex][columnIndex]
 			currentFillLevel = currentFillLevel + fillUnit.fillLevel
 			--print(string.format("check:line %s, column %s fillLevel:%s",tostring(lineIndex),tostring(columnIndex),tostring(fillUnit.fillLevel)))
 		end
@@ -214,20 +199,16 @@ function BunkerSiloManager:getBestColumnToFill()
 	return leastColumnIndex
 end
 
----set the waypoint cordinates for the correct colum of the bunkerSiloMap
----@param course course of the driver
----@param bestColumn target colum of the BunkerSiloMap
----@param ix currentWaypointIx of the driver
----@return foundFirst return first waypointIndex to start offset course from
-function BunkerSiloManager:setOffsetsPerWayPoint(course,bestColumn,ix)
+function BunkerSiloMapManager:setOffsetsPerWayPoint(course,bestColumn,ix)
 	local points =	{}
 	local foundFirst = 0
+	local siloMap = self.bunkerMap
 	for index=ix,course:getNumberOfWaypoints() do
-		if BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(course,index)~= nil then
+		if BunkerSiloMapManagerUtil.getTargetBunkerSiloByPointOnCourse(course,index)~= nil then
 			local closest,cx,cz = 0,0,0
 			local leastDistance = math.huge
-			for lineIndex=1,#self.siloMap do
-				local fillUnit= self.siloMap[lineIndex][bestColumn]
+			for lineIndex=1,#siloMap do
+				local fillUnit= siloMap[lineIndex][bestColumn]
 				local x,z = fillUnit.cx,fillUnit.cz
 				local distance = course:getDistanceBetweenPointAndWaypoint(x,z, index)
 				if leastDistance > distance then
@@ -254,39 +235,90 @@ function BunkerSiloManager:setOffsetsPerWayPoint(course,bestColumn,ix)
 end
 
 ---have we reached the end ?
+---@param object front object of the vehicle, example shovel/leveler
+---@param Silo the targetSilo for creating the bunkerSiloMap
 ---@param bestTarget bunkersilo bestTarget part
 ---@return isAtEnd
-function BunkerSiloManager:isAtEnd(bestTarget)
-	if not self.siloMap or not bestTarget then 
+function BunkerSiloMapManager:isAtEnd(object)
+	local bunkerSiloMap = self.bunkerMap
+	local bestTarget = self.bestTarget
+	if not bunkerSiloMap or not bestTarget then 
 		return
 	end
 	
-	local targetUnit = self.siloMap[bestTarget.line][bestTarget.column]
+	local targetUnit = bunkerSiloMap[bestTarget.line][bestTarget.column]
 	local cx ,cz = targetUnit.cx, targetUnit.cz
 	local cy = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, cx, 1, cz);
-	local x,y,z = getWorldTranslation(self.object.rootNode)
+	local x,y,z = getWorldTranslation(object.rootNode)
 	local distance2Target =  courseplay:distance(x,z, cx, cz) --distance from shovel to target
 	if distance2Target < 1 then
-		if bestTarget.line == #self.siloMap then
+		if bestTarget.line and bestTarget.line == #bunkerSiloMap then
+			self:debug("dropout atEnd")
 			return true
 		end
 	end
 end
 
---- creating bunkerSiloMap and get the bestTarget, firstLine of the bestTarget
+--- Are we near the end ?
+---@param bunkerSiloMap the bunker/heap map
 ---@param bestTarget bunkersilo bestTarget part
+---@return isNearEnd are we close to the end ?
+function BunkerSiloMapManager:isNearEnd()
+	local bestTarget = self.bestTarget
+	return bestTarget.line >= #self.bunkerMap-1
+end
+
+--- updating the current silo target part
+---@param object front object of the vehicle, example shovel/leveler
+---@param bunkerSiloMap the bunker/heap map
+---@param bestTarget bunkersilo bestTarget
+function BunkerSiloMapManager:updateTarget(object)
+	local bunkerSiloMap = self.bunkerMap
+	local bestTarget = self.bestTarget
+	local targetUnit = bunkerSiloMap[bestTarget.line][bestTarget.column]
+	local cx ,cz = targetUnit.cx, targetUnit.cz
+	local cy = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, cx, 1, cz);
+	local x,y,z = getWorldTranslation(object.rootNode)
+	local distance2Target =  courseplay:distance(x,z, cx, cz) --distance from shovel to target
+	if distance2Target < 1 then
+		bestTarget.line = math.min(bestTarget.line + 1, #bunkerSiloMap)
+	end
+	self.bestTarget = bestTarget
+end
+
+
+--- get the best target
+---return bestTarget
+function BunkerSiloMapManager:getBestTarget()
+	return self.bestTarget
+end
+
+function BunkerSiloMapManager:getTargetSilo()
+	return self.silo
+end
+
+
+BunkerSiloMapManagerUtil = {}
+
+--- creating bunkerSiloMap and get the bestTarget, firstLine of the bestTarget
+---@param vehicle vehicle of the driver
+---@param Silo the targetSilo for creating the bunkerSiloMap
+---@param bestTarget bunkersilo bestTarget part
+---@param workWidth workWidth of the driver
 ---@return bunkerSiloMap, bestTarget, firstLine of the bestTarget
-function BunkerSiloManager:getBestTargetFillUnitFillUp(bestTarget)
+function BunkerSiloMapManagerUtil.getBestTargetFillUnitFillUp(vehicle,Silo,workWidth)
 	--print(string.format("courseplay:getActualTarget(vehicle) called by %s",tostring(courseplay.utils:getFnCallPath(3))))
 	local firstLine = 0
-	if self.siloMap ~= nil then
+	local bunkerSiloMap = BunkerSiloManager(vehicle, Silo, workWidth)
+	local bestTarget
+	if bunkerSiloMap ~= nil then
 		local stopSearching = false
 		local mostFillLevelAtLine = 0
 		local mostFillLevelIndex = 2
 		local fillingTarget = {}
 
 		-- find column with most fillLevel and figure out whether it is empty
-		for lineIndex, line in pairs(self.siloMap) do
+		for lineIndex, line in pairs(bunkerSiloMap) do
 			if stopSearching then
 				break
 			end
@@ -319,43 +351,28 @@ function BunkerSiloManager:getBestTargetFillUnitFillUp(bestTarget)
 		firstLine = bestTarget.line
 	end
 	
-	return bestTarget, firstLine
+	return bunkerSiloMap, bestTarget, firstLine
 end
 
-
---- Are we near the end ?
----@param bestTarget bunkersilo bestTarget part
----@return isNearEnd are we close to the end ?
-function BunkerSiloManager:isNearEnd(bestTarget)
-	return bestTarget.line >= #self.siloMap-1
-end
-
---- updating the current silo target part
----@param bestTarget bunkersilo bestTarget
-function BunkerSiloManager:updateTarget(bestTarget)
-	local targetUnit = self.siloMap[bestTarget.line][bestTarget.column]
-	local cx ,cz = targetUnit.cx, targetUnit.cz
-	local cy = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, cx, 1, cz);
-	local x,y,z = getWorldTranslation(self.object.rootNode)
-	local distance2Target =  courseplay:distance(x,z, cx, cz) --distance from shovel to target
-	if distance2Target < 1 then
-		bestTarget.line = math.min(bestTarget.line + 1, #self.siloMap)
-	end		
-end
 
 ---drawing the routing of the driver 
+---@param vehicle vehicle of the driver
+---@param bunkerSiloMap the bunker/heap map
+---@param targetSilo bunkersilo target part
 ---@param bestTarget bunkersilo bestTarget
 ---@param tempTarget for driving out of the silo
-function BunkerSiloManager:debugRouting(bestTarget,tempTarget)
-	if self.siloMap ~= nil and bestTarget ~= nil then
+function BunkerSiloMapManagerUtil.debugRouting(vehicle,bunkerSiloMap,bestTarget,tempTarget)
+	local targetSilo = bunkerSiloMap.silo 
+	
+	if bunkerSiloMap ~= nil and bestTarget ~= nil then
 
-		local fillUnit = self.siloMap[bestTarget.line][bestTarget.column]
+		local fillUnit = bunkerSiloMap[bestTarget.line][bestTarget.column]
 		--print(string.format("fillUnit %s; self.cp.actualTarget.line %s; self.cp.actualTarget.column %s",tostring(fillUnit),tostring(self.cp.actualTarget.line),tostring(self.cp.actualTarget.column)))
 		local sx,sz = fillUnit.sx,fillUnit.sz
 		local wx,wz = fillUnit.wx,fillUnit.wz
 		local bx,bz = fillUnit.bx,fillUnit.bz
 		local hx,hz = fillUnit.hx +(fillUnit.wx-fillUnit.sx) ,fillUnit.hz +(fillUnit.wz-fillUnit.sz)
-		local _,tractorHeight,_ = getWorldTranslation(self.vehicle.cp.directionNode)
+		local _,tractorHeight,_ = getWorldTranslation(vehicle.cp.directionNode)
 		local y = tractorHeight + 1.5;
 
 		cpDebug:drawLine(sx, y, sz, 1, 0, 0, wx, y, wz);
@@ -364,7 +381,7 @@ function BunkerSiloManager:debugRouting(bestTarget,tempTarget)
 		cpDebug:drawLine(fillUnit.cx, y, fillUnit.cz, 1, 0, 1, bx, y, bz);
 		cpDebug:drawPoint(fillUnit.cx, y, fillUnit.cz, 1, 1 , 1);
 
-		local bunker = self.silo
+		local bunker = targetSilo
 		if bunker ~= nil then
 			local sx,sz = bunker.bunkerSiloArea.sx,bunker.bunkerSiloArea.sz
 			local wx,wz = bunker.bunkerSiloArea.wx,bunker.bunkerSiloArea.wz
@@ -377,7 +394,7 @@ function BunkerSiloManager:debugRouting(bestTarget,tempTarget)
 		end
 		if tempTarget ~= nil then
 			local tx,tz = tempTarget.cx,tempTarget.cz
-			local fillUnit = self.siloMap[bestTarget.line][bestTarget.column]
+			local fillUnit = bunkerSiloMap[bestTarget.line][bestTarget.column]
 			local sx,sz = fillUnit.sx,fillUnit.sz
 			cpDebug:drawLine(tx, y, tz, 1, 0, 1, sx, y, sz);
 			cpDebug:drawPoint(tx, y, tz, 1, 1 , 1);
@@ -386,7 +403,9 @@ function BunkerSiloManager:debugRouting(bestTarget,tempTarget)
 end
 
 ---drawing the bunkerSiloMap 
-function BunkerSiloManager:drawMap()
+---@param bunkerSiloMap the bunker/heap map
+---@param targetSilo bunkersilo target part
+function BunkerSiloMapManagerUtil.drawMap(bunkerSiloMap,targetSilo)
 	function drawTile(f, r, g, b)
 		cpDebug:drawLine(f.sx, f.y + 1, f.sz, r, g, b, f.wx, f.y + 1, f.wz)
 		cpDebug:drawLine(f.wx, f.y + 1, f.wz, r, g, b, f.hx, f.y + 1, f.hz)
@@ -394,26 +413,26 @@ function BunkerSiloManager:drawMap()
 		cpDebug:drawLine(f.cx, f.y + 1, f.cz, 1, 1, 1, f.bx, f.y + 1, f.bz);
 	end
 
-	if not self.siloMap then return end
-	for _, line in pairs(self.siloMap) do
+	if not bunkerSiloMap then return end
+	for _, line in pairs(bunkerSiloMap) do
 		for _, fillUnit in pairs(line) do
 			drawTile(fillUnit, 1/1 - fillUnit.fillLevel, 1, 0)
 		end
 	end
-	if not self.silo then return end
-	if self.silo.bunkerSiloArea.start then 
-		DebugUtil.drawDebugNode(self.silo.bunkerSiloArea.start, 'startBunkerNode')
-		DebugUtil.drawDebugNode(self.silo.bunkerSiloArea.width, 'widthBunkerNode')
-		DebugUtil.drawDebugNode(self.silo.bunkerSiloArea.height, 'heightBunkerNode')
+	if not targetSilo then return end
+	if targetSilo.bunkerSiloArea.start then 
+		DebugUtil.drawDebugNode(targetSilo.bunkerSiloArea.start, 'startBunkerNode')
+		DebugUtil.drawDebugNode(targetSilo.bunkerSiloArea.width, 'widthBunkerNode')
+		DebugUtil.drawDebugNode(targetSilo.bunkerSiloArea.height, 'heightBunkerNode')
 	else --for heaps where we have no bunker nodes (start/width/height)
-		cpDebug:drawPoint(self.silo.bunkerSiloArea.sx, 1, self.silo.bunkerSiloArea.sz, 1, 1, 1)
-		cpDebug:drawPoint(self.silo.bunkerSiloArea.wx, 1, self.silo.bunkerSiloArea.wz, 1, 1, 1)
-		cpDebug:drawPoint(self.silo.bunkerSiloArea.hx, 1, self.silo.bunkerSiloArea.hz, 1, 1, 1)
+		cpDebug:drawPoint(targetSilo.bunkerSiloArea.sx, 1, targetSilo.bunkerSiloArea.sz, 1, 1, 1)
+		cpDebug:drawPoint(targetSilo.bunkerSiloArea.wx, 1, targetSilo.bunkerSiloArea.wz, 1, 1, 1)
+		cpDebug:drawPoint(targetSilo.bunkerSiloArea.hx, 1, targetSilo.bunkerSiloArea.hz, 1, 1, 1)
 	end
 end
 
 
-BunkerSiloManagerUtil = {}
+
 
 ---get the closest bunkerSilo or heap
 ---@param vehicle vehicle of the driver
@@ -421,7 +440,7 @@ BunkerSiloManagerUtil = {}
 ---@param checkForHeapsActive is using Heaps allowed, for example mode 9
 ---@return targetSilo either the found BunkerSilo or
 --		   a simulated silo by BunkerSiloManagerUtil.getHeapsMinMaxCoords() for Heaps
-function BunkerSiloManagerUtil.getTargetBunkerSilo(vehicle,forcedPoint,checkForHeapsActive)
+function BunkerSiloMapManagerUtil.getTargetBunkerSilo(vehicle,forcedPoint,checkForHeapsActive)
 	local pointIndex = 0
 	if forcedPoint then
 		 pointIndex = forcedPoint;
@@ -444,7 +463,7 @@ function BunkerSiloManagerUtil.getTargetBunkerSilo(vehicle,forcedPoint,checkForH
 	end
 	--it's not a bunkersSilo, try to find a heap if it is allowed
 	if checkForHeapsActive then
-		return BunkerSiloManagerUtil.getHeapCoords(vehicle),true
+		return BunkerSiloMapManagerUtil.getHeapCoords(vehicle)
 	end
 end
 
@@ -452,7 +471,7 @@ end
 ---check for heaps and simulate a bunkerSiloMap for the found heap
 ---@param vehicle vehicle of the driver
 ---return targetSilo a simulated bunkerSilo version of the heap
-function BunkerSiloManagerUtil.getHeapCoords(vehicle)
+function BunkerSiloMapManagerUtil.getHeapCoords(vehicle)
 	local p1x,p1z,p2x,p2z,p1y,p2y = 0,0,0,0,0,0
 
 	p1x,p1z = vehicle.Waypoints[vehicle.cp.driver.shovelFillStartPoint].cx,vehicle.Waypoints[vehicle.cp.driver.shovelFillStartPoint].cz;
@@ -553,11 +572,7 @@ function BunkerSiloManagerUtil.getHeapCoords(vehicle)
 	return bunker
 end
 
----get the best colum to fill
----@param course course of the driver
----@param forcedPoint forcedPoint or 1 to find the next closest bunkersilo
----@return leastColumnIndex best column to fill
-function BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(course,forcedPoint)
+function BunkerSiloMapManagerUtil.getTargetBunkerSiloByPointOnCourse(course,forcedPoint)
 	local pointIndex = forcedPoint or 1 ;
 	local x,_,z =  course:getWaypointPosition(pointIndex)
 	local tx,tz = x,z + 0.50
@@ -574,4 +589,3 @@ function BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(course,forcedP
 		end
 	end
 end
-

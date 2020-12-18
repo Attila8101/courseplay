@@ -97,6 +97,7 @@ function ShovelModeAIDriver:start()
 	local numWaitPoints = 0
 	self.targetSilo = nil
 	self.bestTarget = nil
+	self.bunkerSilo = nil
 	for i,wp in pairs(vehicle.Waypoints) do
 		if wp.wait then
 			numWaitPoints = numWaitPoints + 1;
@@ -143,12 +144,12 @@ function ShovelModeAIDriver:onDraw()
 	if self:isDebugActive() then 
 		local y = 0.5
 		y = self:renderText(y,"state: "..tostring(self.shovelState.name))
-		y = self:renderText(y,"hasBunkerSiloMap: "..tostring(self.vehicle.cp.BunkerSiloMap ~= nil))
+		y = self:renderText(y,"hasBunkerSiloMap: "..tostring(self.self.bunkerSiloManager.siloMap ~= nil))
 		y = self:renderText(y,"hasTargetSilo: "..tostring(self.targetSilo ~= nil))
 		y = self:renderText(y,"hasBestTarget: "..tostring(self.bestTarget ~= nil))
 		y = self:renderText(y,"isShovelFull: "..tostring(self:getIsShovelFull() == true))
 		y = self:renderText(y,"isShovelEmpty: "..tostring(self:getIsShovelEmpty() == true))
-		y = self:renderText(y,"isAtEnd: "..tostring(self:isAtEnd() == true))
+	--	y = self:renderText(y,"isAtEnd: "..tostring(self:isAtEnd() == true))
 	end
 	AIDriver.onDraw(self)
 end
@@ -171,11 +172,14 @@ function ShovelModeAIDriver:drive(dt)
 		self:hold()
 		if self:setShovelToPositionFinshed(2,dt) then
 			--initialize first target point
-			if self.targetSilo == nil then
-				self.targetSilo = BunkerSiloManagerUtil.getTargetBunkerSilo(self.vehicle,nil,true)
+			if self.bunkerSiloManager == nil then 
+				local silo,isHeap = BunkerSiloManagerUtil.getTargetBunkerSilo(self.vehicle,nil,true)
+				if silo then 
+					self.bunkerSiloManager =  BunkerSiloManager(self.vehicle, silo, self:getWorkWidth(),self.shovel,isHeap)
+				end
 			end
-			if self.bestTarget == nil or self.vehicle.cp.BunkerSiloMap == nil then
-				self.vehicle.cp.BunkerSiloMap,self.bestTarget, self.firstLine = self:getBestTargetFillUnitFillUp(self.vehicle,self.targetSilo,self.bestTarget,self:getWorkWidth())
+			if self.bunkerSiloManager and self.bestTarget == nil then
+				self.bestTarget, self.firstLine = self.bunkerSiloManager:getBestTargetFillUnitFillUp(self.bestTarget)
 			end
 		end
 		self:drawMap()
@@ -188,12 +192,12 @@ function ShovelModeAIDriver:drive(dt)
 		local fwd = true
 		self:driveIntoSilo(dt)
 		self:drawMap()
-		if self:isAtEnd() and self:getIsShovelEmpty() then
+		if self.bunkerSiloManager:isAtEnd(self.bestTarget) and self:getIsShovelEmpty() then
 			self:setShovelState(self.states.STATE_WORK_FINISHED)
 			return
 		end
 
-		if self:getIsShovelFull() or self:isAtEnd() then
+		if self:getIsShovelFull() or self.bunkerSiloManager:isAtEnd(self.bestTarget) then
 			if self:getTargetIsOnBunkerWallColumn() then
 				self.tempTarget = self:getTargetToStraightOut()
 				self:setShovelState(self.states.STATE_REVERSE_STRAIGHT_OUT_OF_SILO)
@@ -344,14 +348,14 @@ function ShovelModeAIDriver:driveIntoSilo(dt)
 	local allowedToDrive = true
 	local cx ,cy,cz = 0,0,0
 	--get coords of the target point
-	local targetUnit = vehicle.cp.BunkerSiloMap[self.bestTarget.line][self.bestTarget.column]
+	local targetUnit = self.bunkerSiloManager.siloMap[self.bestTarget.line][self.bestTarget.column]
 	cx ,cz = targetUnit.cx, targetUnit.cz
 	cy = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, cx, 1, cz);
 	--check whether its time to change the target point
-	self:updateTarget()
+	self.bunkerSiloManager:updateTarget(self.bestTarget)
 
 	--reduce speed at end o silo
-	if self:isNearEnd() then
+	if self.bunkerSiloManager:isNearEnd(self.bestTarget) then
 		refSpeed = math.min(10,self.refSpeed)
 	end
 
@@ -515,7 +519,7 @@ end
 function ShovelModeAIDriver:checkLastWaypoint()
 	if self.ppc:reachedLastWaypoint() then
 		self.ppc:initialize(1)
-		self.vehicle.cp.BunkerSiloMap = nil
+		self.self.bunkerSiloManager = nil
 	end
 end
 
@@ -554,7 +558,7 @@ end;
 
 function ShovelModeAIDriver:getTargetIsOnBunkerWallColumn()
 	local vehicle = self.vehicle
-	return self.bestTarget.column == 1 or self.bestTarget.column == #vehicle.cp.BunkerSiloMap[#vehicle.cp.BunkerSiloMap]
+	return self.bestTarget.column == 1 or self.bestTarget.column == #self.bunkerSiloManager.siloMap[#self.bunkerSiloManager.siloMap]
 end
 
 --not used ?
@@ -577,8 +581,8 @@ function ShovelModeAIDriver:getClosestPointToStartFill()
 end
 function ShovelModeAIDriver:getTargetToStraightOut()
 	local vehicle = self.vehicle
-	local sX,sZ = vehicle.cp.BunkerSiloMap[2][self.bestTarget.column].cx,vehicle.cp.BunkerSiloMap[2][self.bestTarget.column].cz
-	local tX,tZ = vehicle.cp.BunkerSiloMap[1][self.bestTarget.column].cx,vehicle.cp.BunkerSiloMap[1][self.bestTarget.column].cz
+	local sX,sZ = self.bunkerSiloManager.siloMap[2][self.bestTarget.column].cx,self.bunkerSiloManager.siloMap[2][self.bestTarget.column].cz
+	local tX,tZ = self.bunkerSiloManager.siloMap[1][self.bestTarget.column].cx,self.bunkerSiloManager.siloMap[1][self.bestTarget.column].cz
 	local dx,_,dz = courseplay:getWorldDirection(sX, 0, sZ, tX, 0, tZ)
 	local tempTarget = {
 							cx = sX+(dx*30);
@@ -589,7 +593,7 @@ function ShovelModeAIDriver:getTargetToStraightOut()
 end
 
 function ShovelModeAIDriver:getIsReversedOutOfSilo()
-	local x,z = self.vehicle.cp.BunkerSiloMap[1][self.bestTarget.column].cx,self.vehicle.cp.BunkerSiloMap[1][self.bestTarget.column].cz
+	local x,z = self.self.bunkerSiloManager.siloMap[1][self.bestTarget.column].cx,self.self.bunkerSiloManager.siloMap[1][self.bestTarget.column].cz
 	local px,py,pz = worldToLocal(self.vehicle.cp.directionNode,x,0,z)
 	return pz > 4
 end
@@ -617,31 +621,27 @@ function ShovelModeAIDriver:driveInDirection(dt,lx,lz,fwd,speed,allowedToDrive)
 	AIVehicleUtil.driveInDirection(self.vehicle, dt, self.vehicle.cp.steeringAngle, 1, 0.5, 10, allowedToDrive, fwd, lx, lz, speed, 1)
 end
 
-function ShovelModeAIDriver:isAtEnd()
-	return g_bunkerSiloManager:isAtEnd(self.shovel,self.vehicle.cp.BunkerSiloMap,self.bestTarget)
-end
+--function ShovelModeAIDriver:isAtEnd()
+--	return g_bunkerSiloManager:isAtEnd(self.shovel,self.self.bunkerSiloManager.siloMap,self.bestTarget)
+--end
 
-function ShovelModeAIDriver:getBestTargetFillUnitFillUp(vehicle,Silo,actualTarget,workWidth)
-	return g_bunkerSiloManager:getBestTargetFillUnitFillUp(vehicle,Silo,actualTarget,workWidth)
-end
+--function ShovelModeAIDriver:isNearEnd()
+--	return g_bunkerSiloManager:isNearEnd(self.self.bunkerSiloManager.siloMap,self.bestTarget)
+--end
 
-function ShovelModeAIDriver:isNearEnd()
-	return g_bunkerSiloManager:isNearEnd(self.vehicle.cp.BunkerSiloMap,self.bestTarget)
-end
-
-function ShovelModeAIDriver:updateTarget()
-	return g_bunkerSiloManager:updateTarget(self.shovel,self.vehicle.cp.BunkerSiloMap,self.bestTarget)
-end
+--function ShovelModeAIDriver:updateTarget()
+--	return g_bunkerSiloManager:updateTarget(self.shovel,self.self.bunkerSiloManager.siloMap,self.bestTarget)
+--end
 
 function ShovelModeAIDriver:debugRouting()
-	if self:isDebugActive() then
-		BunkerSiloManagerUtil.debugRouting(self.vehicle,self.vehicle.cp.BunkerSiloMap,self.targetSilo,self.bestTarget,self.tempTarget)
+	if self:isDebugActive() and self.bunkerSiloManager then
+		self.bunkerSiloManager:debugRouting(self.bestTarget,self.tempTarget)
 	end
 end
 
 function ShovelModeAIDriver:drawMap()
-	if self:isDebugActive() then
-		BunkerSiloManagerUtil.drawMap(self.vehicle.cp.BunkerSiloMap,self.targetSilo)
+	if self:isDebugActive() and self.bunkerSiloManager then
+		self.bunkerSiloManager:drawMap()
 	end
 end
 

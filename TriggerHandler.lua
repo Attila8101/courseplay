@@ -82,9 +82,6 @@ function TriggerHandler:onUpdate(dt)
 	if self.validFillTypeUnloadingBunkerSilo then 
 		self:updateUnloadingBunkerSilo()
 	end
-	if self:isWaitingForUnloadReady() then 
-		self.driver:setSpeed(0)
-	end
 end 
 
 --debug info
@@ -220,6 +217,12 @@ function TriggerHandler:updateUnloadingBunkerSilo()
 		self.bunkerSilo = BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(self.driver.course,self.driver.ppc:getCurrentWaypointIx()+3)
 	else 
 		self.bunkerSilo = BunkerSiloManagerUtil.getTargetBunkerSiloByPointOnCourse(self.driver.course,self.driver.ppc:getCurrentWaypointIx()-3)
+	end
+	if self:isWaitingForUnloadReady() then 
+		self:setInfoText('WAITING_FOR_UNLOADERS')
+		self.driver:setSpeed(0)
+	else 
+		self:clearInfoText('WAITING_FOR_UNLOADERS')
 	end
 end
 
